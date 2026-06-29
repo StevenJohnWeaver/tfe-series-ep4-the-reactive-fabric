@@ -1,0 +1,33 @@
+# allowed-instance-types.sentinel
+# Ep4: Extends Ep2's governance — approved instance types for EC2 compute.
+# Hard-mandatory: architectural guardrail across all ep4 workspaces.
+#
+# Same pattern as Ep2's EKS node group policy, now targeting standalone
+# aws_instance resources. Keeps the demo environment cost-conscious and
+# prevents over-provisioned compute from being introduced.
+
+import "tfplan/v2" as tfplan
+import "strings"
+
+allowed_prefixes = ["t3.", "t3a.", "m5.", "m5a.", "m6i."]
+
+instances = filter tfplan.resource_changes as _, rc {
+  rc.type is "aws_instance" and
+  (rc.change.actions contains "create" or rc.change.actions contains "update")
+}
+
+violations = []
+
+for instances as _, inst {
+  itype = inst.change.after.instance_type else ""
+  approved = any allowed_prefixes as prefix {
+    strings.has_prefix(itype, prefix)
+  }
+  if not approved {
+    append(violations, "Instance '" + inst.address + "' uses type '" + itype + "' which is not on the approved list")
+  }
+}
+
+main = rule {
+  length(violations) is 0
+}

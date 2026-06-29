@@ -1,0 +1,35 @@
+# require-tags.sentinel
+# Ep4: Carried forward from Ep2 — every taggable resource must carry
+# environment and owner tags. Soft-mandatory: overridable by workspace admin.
+#
+# Unchanged from Ep2. The generic aws_* + tags_all pattern covers aws_instance
+# and aws_security_group without modification.
+
+import "tfplan/v2" as tfplan
+import "strings"
+
+required_tags = ["environment", "owner"]
+
+all_resources = filter tfplan.resource_changes as _, rc {
+  rc.change.actions contains "create" or rc.change.actions contains "update"
+}
+
+violations = []
+
+for all_resources as _, resource {
+  if strings.has_prefix(resource.type, "aws_") {
+    after = resource.change.after else {}
+    if after contains "tags_all" {
+      tags = after.tags_all else {}
+      for required_tags as tag {
+        if (not (tags contains tag)) or (tags[tag] is "") {
+          append(violations, "Resource '" + resource.address + "' is missing required tag '" + tag + "'")
+        }
+      }
+    }
+  }
+}
+
+main = rule {
+  length(violations) is 0
+}
