@@ -158,7 +158,10 @@ check failed — stopping instance"]*
 
 > "The run appears. The workspace enters a plan state — but because an action address was
 > specified, Terraform focuses only on that action. Everything else in the workspace is
-> untouched. Watch the run log."
+> untouched. And notice — no one had to click Apply. The trigger payload set `auto-apply:
+> true`, so the moment the plan finishes, it executes. That's the point: a 2am page doesn't
+> need a human in the loop to greenlight a narrowly-scoped, policy-governed action. Watch
+> the run log."
 
 *[Show the action executing — instance stopping]*
 
@@ -166,9 +169,18 @@ check failed — stopping instance"]*
 
 *[Switch to AWS Console → EC2 → show the instance transitioning to stopped]*
 
-> "Stopped. And look at the run history in ep4-ops-vm — that intervention is logged, tied
-> to the Datadog message, timestamped, with the exact action address that was invoked. The
-> remediation didn't happen in a Slack thread. It happened in the audit trail."
+> "Stopped."
+
+**On screen:** Switch to HCP Terraform → ep4-ops-vm → **Actions** tab → select
+`aws_ec2_stop_instance.stop_on_alert`. Point to the invocation history row.
+
+> "And here's the audit trail HCP Terraform gives us natively — the Actions panel. Status:
+> Successful. Source: API. Invoked by the token that fired it. Timestamped. This is the
+> same governance surface as a deployment, applied to an operation. The remediation didn't
+> happen in a Slack thread. It happened here, with full provenance."
+
+*[Optional: click **Invoke** on this panel to show the action can also be triggered
+manually from the UI, not just the API — same governed path either way.]*
 
 **On screen:** Show the native AWS action list (reference slide or lightboard):
 - EC2: stop instance, Lambda invoke, CloudFront invalidation, DynamoDB backup, SNS publish
@@ -267,10 +279,14 @@ ServiceNow and a config management icon.
   Console and the cut should feel smooth.
 - **The `invoke-action-addrs` attribute is the moment.** Pause on it. The audience needs
   to understand that this is what makes the run surgical — it's not a full plan/apply.
-- **The audit trail close-up is the payoff.** After the instance stops, linger on the run
-  history in ep4-ops-vm showing the Datadog message tied to the action invocation. That
-  juxtaposition — external alert → governed action → provenance — is the core argument of
-  the episode.
+- **The audit trail close-up is the payoff.** After the instance stops, linger on the
+  Actions tab invocation history in ep4-ops-vm showing the Datadog-triggered run tied to
+  the action. That juxtaposition — external alert → governed action → provenance — is the
+  core argument of the episode.
+- **Auto-apply is a talking point, not a silent default.** Say out loud that the run
+  applies without a manual click, and why that's safe here: Sentinel policy + RBAC scoping
+  on who can call the API stand in for the human review step. Don't let it look like an
+  oversight.
 - **Trip-wire timing:** hard block and soft block are in the 2:00–5:00 segment. Build about
   90 seconds for each — they're fast but worth showing cleanly, not rushed.
 - **Bridge framing:** the AAP action (`ansible-automation-platform_job_launch`) is the

@@ -14,7 +14,7 @@ set -euo pipefail
 
 TFE_HOST="${TFE_HOST:-app.terraform.io}"
 
-curl -sS \
+curl -sS --fail-with-body \
   --header "Authorization: Bearer ${TFE_TOKEN}" \
   --header "Content-Type: application/vnd.api+json" \
   --request POST \
@@ -25,7 +25,8 @@ curl -sS \
     "type": "runs",
     "attributes": {
       "message": "Datadog: ep4-demo-node health check failed — stopping instance",
-      "invoke-action-addrs": ["action.aws_ec2_stop_instance.stop_on_alert"]
+      "invoke-action-addrs": ["action.aws_ec2_stop_instance.stop_on_alert"],
+      "auto-apply": true
     },
     "relationships": {
       "workspace": {

@@ -35,7 +35,9 @@ than an immediate restart that keeps the bad process running longer.
 ### Same IAM role as ep2
 Both ep4 workspaces reuse the same `TFC_AWS_RUN_ROLE_ARN` from ep2. No new IAM role needed.
 
-## Status: scaffolded, not yet deployed
+## Status: feature-complete, confirmed working end-to-end on `ep4-vm-prod`/`ep4-ops-vm`
+`trigger-action.sh` fired successfully: instance transitioned to `Stopped`, action invocation
+shows `Successful` in the HCP Terraform Actions UI. Not yet recorded.
 
 ## Setup reference
 
@@ -79,7 +81,16 @@ export TFE_TOKEN=<your-token>
 export TFE_WORKSPACE_ID=ws-XXXXXXXX   # ep4-ops-vm workspace ID from HCP Terraform UI
 ./scripts/trigger-action.sh
 ```
-The workspace ID is in HCP Terraform → ep4-ops-vm → Settings → ID.
+The workspace ID is in HCP Terraform → ep4-ops-vm → Settings → ID. The script sets
+`"auto-apply": true` on the run payload, so the action applies immediately with no manual
+confirm click — see gotcha below.
+
+### Actions UI (HCP Terraform)
+HCP Terraform now has a dedicated Actions panel: workspace → **Actions** tab → select
+`aws_ec2_stop_instance.stop_on_alert`. It shows invocation count, full action address, and an
+**invocation history** table (run ID, status, invocation method, source, invoked-by, timestamp)
+— plus a manual **Invoke** button for triggering the action directly from the UI without the
+script. This is a better visual for the recording than the raw run log (see demo flow).
 
 ## Known gotchas
 
@@ -100,6 +111,21 @@ The workspace ID is in HCP Terraform → ep4-ops-vm → Settings → ID.
 - **Environment Variables vs Terraform Variables**: `TFC_AWS_PROVIDER_AUTH` and
   `TFC_AWS_RUN_ROLE_ARN` must be set under **Environment Variables** in the workspace, not
   Terraform Variables — easy to mis-categorize in the UI.
+- **Variable name is `TFC_AWS_RUN_ROLE_ARN`, not `TFC_AWS_ROLE_ARN`**: missing the `_RUN_`
+  segment produces `Operation failed: configuration for AWS is invalid: missing required
+  value(s): AWS role ARN` even though a value is set — HCP Terraform doesn't recognize the
+  misnamed key and treats the ARN as entirely absent.
+- **Auto-apply is set per-run, not workspace-wide**: `trigger-action.sh` passes
+  `"auto-apply": true` in the run payload so the Datadog-triggered action applies without a
+  manual confirm click (matches the "2am, no human in the loop" narrative). The workspace's
+  own Apply Method setting is left on manual — this only affects API-created runs that set the
+  attribute explicitly, so UI/CLI-triggered plans on `ep4-ops-vm` still require a manual apply.
+  The safety net for auto-applied actions is Sentinel policy + RBAC scoping on who can call the
+  API, not a human review step — worth saying explicitly in the talk track.
+- **`curl -sS` alone doesn't fail on HTTP errors**: a 401/403 response still exits 0 and prints
+  the error body, so without `--fail-with-body` the script's trailing "Run triggered" message
+  prints even on failure. `trigger-action.sh` uses `--fail-with-body` (curl ≥ 7.76) to catch
+  this.
 
 ## Demo flow (recording guide)
 
@@ -125,7 +151,13 @@ Draw the 3-step loop: Sensor (Datadog) → Decision (HCP Terraform API) → Inte
 (action). Show `scripts/trigger-action.sh` — the single `curl` POST with
 `invoke-action-addrs`. Fire it live, switch to HCP Terraform UI, show the run appearing in
 ep4-ops-vm with the Datadog message, show the plan targeting only the action, show the
-instance stopping.
+instance stopping — applies automatically (`auto-apply: true`), no manual confirm needed.
+
+Then pivot to the **Actions tab** on `ep4-ops-vm` (Action details → `aws_ec2_stop_instance.
+stop_on_alert`): show the invocation history row — status `Successful`, source `API`,
+invoked-by `steveweaver`, timestamp. This is a cleaner audit-trail visual than the raw run
+log and reinforces "governed, audited" without narrating it. Optionally demo the manual
+**Invoke** button here too, to show the action is callable from the UI as well as the API.
 
 Reference the native Actions list for AWS, Azure, GCP, and AAP (covered next episode).
 
